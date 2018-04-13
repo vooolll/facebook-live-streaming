@@ -2,9 +2,9 @@ package config
 
 import com.typesafe.config._
 import com.typesafe.scalalogging.LazyLogging
-import domain._
-import domain.oauth.{FacebookAppSecret, FacebookClientId, FacebookRedirectUri}
+import domain.oauth._
 
+import scala.concurrent.duration._
 import scala.util._
 
 /**
@@ -17,10 +17,16 @@ object FacebookConfig extends ConfigurationDetector with LazyLogging {
   val config = ConfigFactory.load
 
   val version = FacebookVersion("2.10")
-  val clientId = FacebookClientId(envVarOrConfig("FACEBOOK_CLIENT_ID", "facebook.clientId"))
- val appSecret = FacebookAppSecret(envVarOrConfig("FACEBOOK_APP_SECRET", "facebook.appSecret"))
 
-  logger.info(s"Client id - $clientId, redirect uri - $redirectUri")
+  val accessToken = FacebookAccessToken(
+    tokenValue = tokenValueOf("FACEBOOK_ACCESS_TOKEN", "facebook.accessToken"),
+    tokenType  = UserAccessToken("bearer", 60.days)
+  )
+
+  logger.info(s"Client id - ${version.value}")
+
+  private def tokenValueOf(envStr: String, typesafeStr: String) = TokenValue(envVarOrConfig(envStr, typesafeStr))
+
 }
 
 /**
