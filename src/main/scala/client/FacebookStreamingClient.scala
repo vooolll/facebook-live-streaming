@@ -1,30 +1,34 @@
 package client
 
-import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse, Uri}
-import akka.stream.{ActorMaterializer, ThrottleMode}
+import akka.stream.ThrottleMode
 import akka.stream.alpakka.sse.scaladsl.EventSource
 import akka.stream.scaladsl.Sink
 import config.FacebookConfig
+import constants.FacebookUrls
 import domain.oauth.FacebookAccessToken
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-class FacebookStreamingClient(accessToken: FacebookAccessToken)(implicit actorSystem: ActorSystem, materializer: ActorMaterializer) {
-  val uri = "http://streaming-graph.facebook.com/202059110586785/live_comments?access_token=EAAcAL79ZCFjMBAOhVcq78FWl5i3RmZBSBTHEgjajCMmNW8Ypr7OB6HTEbBp4XqBkAQ20ZAeSkI6VtjN2fbXEWlJ5UyZAhfSVfpP6SOFTtMZBO04OexkNx9dJmDbAjcdQiH28zLKOZBYlsJG2NnJjoRp5oyF8aZCDYaUXrbhQWOz93nLYclvMZAZA2Skf5UDG482Gfe58SA5xz1gZDZD&comment_rate=one_per_two_seconds&fields=from{id,name},message"
+class FacebookStreamingClient(accessToken: FacebookAccessToken) {
 
-  implicit val ec = actorSystem.dispatcher
+  val resources = new ReactiveAppResources()
 
-  def send(request: HttpRequest): Future[HttpResponse] = {
-    val result = Http().singleRequest(HttpRequest(uri = uri))
-    result onComplete println
-    result
-  }
-  val eventSource = EventSource(Uri(uri), send, Some("2"), 1.second)
+  import resources._
 
-  def liveComments() = {
+  def liveComments(liveVideoId: String) = {
+    val uri = s"${FacebookUrls.baseUrl}/$liveVideoId/live_comments?" +
+      s"access_token=${accessToken.tokenValue.value}&comment_rate=one_per_two_seconds&fields=from{id,name},message"
+
+    val eventSource = EventSource(Uri(uri), send, Some("2"), 1.second)
+
+    def send(request: HttpRequest): Future[HttpResponse] = {
+      val result = Http().singleRequest(HttpRequest(uri = uri))
+      result onComplete println
+      result
+    }
 
     eventSource.runForeach(serverEvent => println(serverEvent))
 
@@ -34,8 +38,6 @@ class FacebookStreamingClient(accessToken: FacebookAccessToken)(implicit actorSy
 }
 
 object FacebookStreamingClient {
-  def apply()(implicit actorSystem: ActorSystem, mat: ActorMaterializer): FacebookStreamingClient
-    = FacebookStreamingClient(FacebookConfig.accessToken)(actorSystem, mat)
-  def apply(accessToken: FacebookAccessToken)(implicit actorSystem: ActorSystem, mat: ActorMaterializer): FacebookStreamingClient
-    = new FacebookStreamingClient(accessToken)(actorSystem, mat)
+  def apply(): FacebookStreamingClient = FacebookStreamingClient(FacebookConfig.accessToken)
+  def apply(accessToken: FacebookAccessToken): FacebookStreamingClient = new FacebookStreamingClient(accessToken)
 }
